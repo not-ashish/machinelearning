@@ -1,0 +1,63 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.decomposition import PCA
+
+def principal_component_analysis(data):
+    pca = PCA(n_components=2)
+    principalComponents = pca.fit_transform(data)
+    principalDf = pd.DataFrame(data=principalComponents
+                               , columns=['principal component 1', 'principal component 2'])
+    #finaldf = pd.concat([principalDf, data.iloc[:, -1:]], axis=1)
+    return principalDf
+
+
+def preprocessing(data, types, convert):
+    df = pd.DataFrame(data)
+    drops = []
+
+    result = df.iloc[:, -1] #added
+    drops.append(result.name) #added
+
+    for name, tp in zip(df.iloc[:, :-1], types):
+        new_column = df[name].copy()
+        if tp == 'numeric':
+            # if all the values are NaN (representing missing value), remove the variable from the dataset
+            if df[name].isnull().all():
+                drops.append(name)
+            else:
+                # fill missing values with the mean
+                df[name] = df[name].replace(np.nan, df[name].mean())
+
+                # standarizaion
+                df[name] = (df[name] - df[name].mean()) / df[name].std()
+        else:
+            # find majority for later replacement of missing values
+            counts = df[name].value_counts()
+            majority = counts.idxmax().decode("utf-8")
+            if majority != "?" and majority != np.nan:
+                # iterate over the values in the variable and replace the missing values by the majority found
+                for idx, val in df[name].items():
+                    if val.decode("utf-8") == "?" or val.decode("utf-8") == np.nan:
+                        new_column[idx] = majority.encode()
+                df[name] = new_column
+            else:
+                # if majority is "?" (representing missing value), remove the variable from the dataset
+                drops.append(name)
+
+            if convert:
+                dummy = pd.get_dummies(df[name], prefix=name) #added
+                df = pd.merge(left=df, right=dummy, left_index=True, right_index=True) #added
+                drops.append(name) #added
+
+                # one hot encoding
+                #encoder = OneHotEncoder(sparse=False)
+                #arr_2d = np.reshape(df[name].to_numpy(), (df[name].size, 1))
+                #onehot = encoder.fit_transform(arr_2d)
+                #df[name] = pd.Series(onehot.tolist())
+
+    for item in drops:
+        del df[item]
+    #df = pd.merge(left=df, right=result, left_index=True, right_index=True) #added
+
+    return df
